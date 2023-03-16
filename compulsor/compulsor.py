@@ -58,14 +58,22 @@ def main(ctx, debug):
 @main.command(help="Display a formatted pulse report")
 @click.argument("pulse", nargs=-1)
 @click.option("-k", "--keys", is_flag=True, help="Show Jira keys in the report")
+@click.option("-p", "--private", is_flag=True, help="Show private items in the report")
 @click.pass_context
-def showpulse(ctx, pulse, keys):
+def showpulse(ctx, pulse, keys, private):
     ctx = ctx.obj
 
     if not len(pulse):
         pulse = ["latest"]
 
-    print("\n".join(map(lambda sprintid: sprintinfo(ctx, sprintid, keys), pulse)))
+    print(
+        "\n".join(
+            map(
+                lambda sprintid: sprintinfo(ctx, sprintid, keys, showprivate=private),
+                pulse,
+            )
+        )
+    )
 
 
 @main.command(help="Post pulse reports to discourse")
@@ -90,9 +98,10 @@ def postpulse(ctx, discourses, pulse, alldiscourse):
     for discourse in discourses:
         keys = ctx.toolconfig["discourse"][discourse]["keys"]
         topic = ctx.toolconfig["discourse"][discourse]["topic"]
+        showprivate = ctx.toolconfig["discourse"][discourse]["private"]
 
         client = CanDiscourseClient(ctx.serviceconfig["discourse"][discourse])
-        info = sprintinfo(ctx, pulse, keys)
+        info = sprintinfo(ctx, pulse, keys, showprivate=showprivate)
         info = click.edit(info)
 
         if not info.startswith("## Pulse"):

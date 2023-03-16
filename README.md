@@ -36,6 +36,7 @@ tools:
       canonical:
         topic: 234
         keys: true
+        private: true            # If private items should be shared
 ```
 
 Installation and Use
@@ -71,3 +72,14 @@ Usage: compulsor.py postpulse [OPTIONS] [PULSE] [DISCOURSES]...
 Options:
   -a, --all  Post pulse report to all configured discourses
 ```  
+
+Gathering Information
+---------------------
+
+On Jira, drop one of these this into the description or a comment:
+
+```
+PULSEDESC: I did a thing in the current sprint (uses comment date, best be more explicit)
+PULSEDESC[2023#2]: I did a thing in this specific sprint
+PULSEDESC[2023#5,private]: I did a thing in this sprint, and it should only be shared privately
+```

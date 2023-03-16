@@ -4,7 +4,7 @@ import re
 import jira2markdown
 
 RE_FIND_MARKER = re.compile(
-    r"PULSEDESC(?:\[(?P<pulse>[^\]]+)\])?:(?P<description>[^\n]+)"
+    r"PULSEDESC(?:\[(?P<tags>[^\]]+)\])?:\s*(?P<description>[^\n]+)"
 )
 
 
@@ -17,12 +17,15 @@ def insprint(sprintinfo, dt):
     return isodt >= isostart and isodt <= isoend
 
 
-def formatitem(item, showissue=None):
+def formatitem(item, showissue=None, private=False):
     descr = jira2markdown.convert(item.strip())
+    confidential = "[CONFIDENTIAL] " if private else ""
     if showissue:
-        return f"* \\[[{showissue.key}]({showissue.permalink()})\\] {descr}"
+        return (
+            f"* \\[[{showissue.key}]({showissue.permalink()})\\]{confidential}{descr}"
+        )
     else:
-        return "* " + descr
+        return f"* {confidential}{descr}"
 
 
 def formatrange(start, end):
@@ -36,7 +39,21 @@ def isodate(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
-def sprintinfo(ctx, sprintid, keys):
+def gettags(match):
+    tags = set(
+        map(lambda x: x.strip(), (match.group("tags") or "").split(","))
+        if match
+        else []
+    )
+    private = "private" in tags
+
+    if private:
+        tags.remove("private")
+
+    return tags, private
+
+
+def sprintinfo(ctx, sprintid, keys, showprivate=False):
     text = ""
 
     def tprint(*args):
@@ -73,15 +90,29 @@ def sprintinfo(ctx, sprintid, keys):
         showissue = issue if keys else None
         if issue.fields.description:
             match = RE_FIND_MARKER.search(issue.fields.description)
-            if match and match.group("pulse") == sprintid:
+            tags, hasprivate = gettags(match)
+            if match and (not hasprivate or showprivate) and sprintid in tags:
                 tprint(formatitem(match.group("description"), showissue=showissue))
 
         for comment in issue.fields.comment.comments:
             match = RE_FIND_MARKER.search(comment.body)
-            if match and (
-                match.group("pulse") == sprintid
-                or (not match.group("pulse") and insprint(sprintinfo, comment.created))
+            if not match:
+                continue
+
+            tags, hasprivate = gettags(match)
+            print(tags, hasprivate)
+            if not showprivate and hasprivate:
+                continue
+
+            if sprintid in tags or (
+                not len(tags) and insprint(sprintinfo, comment.created)
             ):
-                tprint(formatitem(match.group("description"), showissue=showissue))
+                tprint(
+                    formatitem(
+                        match.group("description"),
+                        showissue=showissue,
+                        private=hasprivate,
+                    )
+                )
 
     return text
