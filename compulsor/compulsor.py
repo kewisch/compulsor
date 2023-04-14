@@ -117,5 +117,26 @@ def postpulse(ctx, discourses, pulse, alldiscourse):
         )
 
 
+@main.command(help="Show discourse links")
+@click.argument("discourses", nargs=-1)
+@click.option(
+    "-a",
+    "--all",
+    "alldiscourse",
+    is_flag=True,
+    help="Use all discourses",
+)
+@click.pass_obj
+def showlinks(ctx, discourses, alldiscourse):
+    if alldiscourse:
+        discourses = ctx.toolconfig["discourse"].keys()
+    if not len(discourses):
+        discourses = ["ubuntu"]
+
+    for discourse in discourses:
+        topic = ctx.toolconfig["discourse"][discourse]["topic"]
+        print(f'{ctx.serviceconfig["discourse"][discourse]["url"]}/t/{topic}')
+
+
 if __name__ == "__main__":
     main()
