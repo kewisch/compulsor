@@ -2,7 +2,6 @@ import http.client
 import logging
 import os.path
 import stat
-import sys
 from functools import cached_property
 
 import click
@@ -39,18 +38,26 @@ class Context:
 
 @click.group()
 @click.option("--debug", is_flag=True, default=False, help="Enable debugging")
+@click.option("--config", default="~/.canonicalrc", help="Config file location.")
 @click.pass_context
-def main(ctx, debug):
+def main(ctx, debug, config):
     ctx.ensure_object(dict)
 
-    configpath = os.path.expanduser("~/.canonicalrc")
+    configpath = os.path.expanduser(config)
+
+    # Check if the config file is locked to mode 600. Add a loophole in case it is being passed in
+    # via pipe, it appears on macOS the pipes are mode 660 instead.
     statinfo = os.stat(configpath, dir_fd=None, follow_symlinks=True)
-    if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0:
-        print("Credentials file is not chmod 600")
-        sys.exit(1)
+    if (statinfo.st_mode & (stat.S_IROTH | stat.S_IRGRP)) != 0 and not stat.S_ISFIFO(
+        statinfo.st_mode
+    ):
+        raise click.ClickException(f"Credentials file {config} is not chmod 600")
 
     with open(configpath) as fd:
         config = yaml.safe_load(fd)
+
+    if not config:
+        raise click.ClickException(f"Could not load config file {configpath}")
 
     ctx.obj = Context(config, debug)
 
@@ -59,10 +66,8 @@ def main(ctx, debug):
 @click.argument("pulse", nargs=-1)
 @click.option("-k", "--keys", is_flag=True, help="Show Jira keys in the report")
 @click.option("-p", "--private", is_flag=True, help="Show private items in the report")
-@click.pass_context
+@click.pass_obj
 def showpulse(ctx, pulse, keys, private):
-    ctx = ctx.obj
-
     if not len(pulse):
         pulse = ["latest"]
 
@@ -86,10 +91,8 @@ def showpulse(ctx, pulse, keys, private):
     is_flag=True,
     help="Post pulse report to all configured discourses",
 )
-@click.pass_context
+@click.pass_obj
 def postpulse(ctx, discourses, pulse, alldiscourse):
-    ctx = ctx.obj
-
     if alldiscourse:
         discourses = ctx.toolconfig["discourse"].keys()
     if not len(discourses):
