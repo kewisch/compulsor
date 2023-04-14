@@ -21,10 +21,10 @@ def insprint(sprintinfo, dt):
 
 def formatitem(item, showissue=None, private=False):
     descr = jira2markdown.convert(item.strip())
-    confidential = "[CONFIDENTIAL] " if private else ""
+    confidential = "[CONFIDENTIAL]" if private else ""
     if showissue:
         return (
-            f"* \\[[{showissue.key}]({showissue.permalink()})\\]{confidential}{descr}"
+            f"* \\[[{showissue.key}]({showissue.permalink()})\\]{confidential} {descr}"
         )
     else:
         return f"* {confidential}{descr}"
