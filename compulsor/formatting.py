@@ -100,7 +100,6 @@ def sprintinfo(ctx, sprintid, keys, showprivate=False):
                 continue
 
             tags, hasprivate = gettags(match)
-            print(tags, hasprivate)
             if not showprivate and hasprivate:
                 continue
 

@@ -101,7 +101,7 @@ def postpulse(ctx, discourses, pulse, alldiscourse):
     for discourse in discourses:
         keys = ctx.toolconfig["discourse"][discourse]["keys"]
         topic = ctx.toolconfig["discourse"][discourse]["topic"]
-        showprivate = ctx.toolconfig["discourse"][discourse]["private"]
+        showprivate = ctx.toolconfig["discourse"][discourse].get("private", False)
 
         client = CanDiscourseClient(ctx.serviceconfig["discourse"][discourse])
         info = sprintinfo(ctx, pulse, keys, showprivate=showprivate)
