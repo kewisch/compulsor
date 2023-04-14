@@ -1,11 +1,13 @@
 import datetime
 import re
+import sys
 
 import jira2markdown
 
 RE_FIND_MARKER = re.compile(
     r"PULSEDESC(?:\[(?P<tags>[^\]]+)\])?:\s*(?P<description>[^\n]+)"
 )
+RE_FIND_TYPO = re.compile(r"PULSDESC|PULSEDEC|PULSEDESC[^:\[]")
 
 
 def insprint(sprintinfo, dt):
@@ -53,6 +55,12 @@ def gettags(match):
     return tags, private
 
 
+def typocheck(match, text, url):
+    foundtypo = RE_FIND_TYPO.search(text)
+    if foundtypo and not match:
+        sys.stderr.write(f"Warning: Potential typo in {url}: {foundtypo.group(0)}\n")
+
+
 def sprintinfo(ctx, sprintid, keys, showprivate=False):
     text = ""
 
@@ -91,11 +99,13 @@ def sprintinfo(ctx, sprintid, keys, showprivate=False):
         if issue.fields.description:
             match = RE_FIND_MARKER.search(issue.fields.description)
             tags, hasprivate = gettags(match)
+            typocheck(match, issue.fields.description, issue.permalink())
             if match and (not hasprivate or showprivate) and sprintid in tags:
                 tprint(formatitem(match.group("description"), showissue=showissue))
 
         for comment in issue.fields.comment.comments:
             match = RE_FIND_MARKER.search(comment.body)
+            typocheck(match, comment.body, issue.permalink())
             if not match:
                 continue
 
