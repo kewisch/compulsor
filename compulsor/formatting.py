@@ -3,11 +3,16 @@ import re
 import sys
 
 import jira2markdown
+from spellchecker import SpellChecker
 
 RE_FIND_MARKER = re.compile(
     r"PULSEDESC(?:\[(?P<tags>[^\]]+)\])?:\s*(?P<description>[^\n]+)"
 )
-RE_FIND_TYPO = re.compile(r"PULSDESC|PULSEDEC|PULSEDESC[^:\[]")
+RE_FIND_TYPO = re.compile(
+    "|".join(map(lambda word: word.upper(), SpellChecker().candidates("confidential")))
+)
+RE_STRIP_ISSUE = re.compile(r"\\\[\[\w+-\d+\]\([^)]+\)\\\] (.*)")
+CONFIDENTIAL_TAG = "\\[CONFIDENTIAL\\]"
 
 
 def insprint(sprintinfo, dt):
@@ -20,8 +25,18 @@ def insprint(sprintinfo, dt):
 
 
 def formatitem(item, showissue=None, private=False):
-    descr = jira2markdown.convert(item.strip())
-    confidential = "[CONFIDENTIAL]" if private else ""
+    markdown = jira2markdown.convert(item.strip())
+    descr = (
+        "\n".join(map(lambda line: line + "\\", markdown.splitlines()))
+        .rstrip("\\")
+        .strip()
+    )
+
+    confidential = CONFIDENTIAL_TAG if private else ""
+
+    if private:
+        descr = descr.replace("CONFIDENTIAL", "", 1).strip("\\ \t\n")
+
     if showissue:
         return (
             f"* \\[[{showissue.key}]({showissue.permalink()})\\]{confidential} {descr}"
@@ -55,13 +70,32 @@ def gettags(match):
     return tags, private
 
 
-def typocheck(match, text, url):
-    foundtypo = RE_FIND_TYPO.search(text)
-    if foundtypo and not match:
-        sys.stderr.write(f"Warning: Potential typo in {url}: {foundtypo.group(0)}\n")
+def typocheck(text, url):
+    for typo in re.finditer(RE_FIND_TYPO, text):
+        if typo.group(0) == "CONFIDENTIAL":
+            continue
+        sys.stderr.write(f"Warning: Potential typo in {url}: {typo.group(0)}\n")
 
 
-def sprintinfo(ctx, sprintid, keys, showprivate=False):
+def stripinfo(string, private, keys=True):
+    lines = []
+    stripcontinue = False
+    for line in string.splitlines():
+        if stripcontinue or (not private and CONFIDENTIAL_TAG in line):
+            stripcontinue = False
+            if line[-1] == "\\":
+                stripcontinue = True
+            continue
+
+        if keys:
+            lines.append(line)
+        else:
+            lines.append(re.sub(RE_STRIP_ISSUE, r"\1", line))
+
+    return "\n".join(lines)
+
+
+def sprintinfo(ctx, sprintid, keys, reportnamefield, showprivate=False):
     text = ""
 
     def tprint(*args):
@@ -91,37 +125,30 @@ def sprintinfo(ctx, sprintid, keys, showprivate=False):
 
     issues = ctx.jira.search_issues(
         f'project = "{ctx.toolconfig["project"]}" AND sprint = "{sprint}"',
-        fields="description,comment",
+        fields="summary,status,parent," + reportnamefield,
     )
 
-    for issue in issues:
+    for issue in sorted(
+        issues, key=lambda x: x.fields.parent.key if hasattr(x.fields, "parent") else ""
+    ):
         showissue = issue if keys else None
-        if issue.fields.description:
-            match = RE_FIND_MARKER.search(issue.fields.description)
-            tags, hasprivate = gettags(match)
-            typocheck(match, issue.fields.description, issue.permalink())
-            if match and (not hasprivate or showprivate) and sprintid in tags:
-                tprint(formatitem(match.group("description"), showissue=showissue))
+        reportfield = getattr(issue.fields, reportnamefield, None)
 
-        for comment in issue.fields.comment.comments:
-            match = RE_FIND_MARKER.search(comment.body)
-            typocheck(match, comment.body, issue.permalink())
-            if not match:
-                continue
-
-            tags, hasprivate = gettags(match)
-            if not showprivate and hasprivate:
-                continue
-
-            if sprintid in tags or (
-                not len(tags) and insprint(sprintinfo, comment.created)
-            ):
-                tprint(
-                    formatitem(
-                        match.group("description"),
-                        showissue=showissue,
-                        private=hasprivate,
-                    )
+        if reportfield:
+            if reportfield.strip() == "SKIP":
+                sys.stderr.write(
+                    f"Warning: Skipping {issue.permalink()} ({issue.fields.summary}) as it was marked SKIP\n"
                 )
+                continue
+
+            typocheck(reportfield, issue.permalink())
+            hasprivate = "CONFIDENTIAL" in reportfield
+
+            if not hasprivate or showprivate:
+                tprint(formatitem(reportfield, showissue=showissue, private=hasprivate))
+        else:
+            sys.stderr.write(
+                f"Warning: Issue {issue.permalink()} ('{issue.fields.summary}' - {issue.fields.status}) has no pulse description\n"
+            )
 
     return text

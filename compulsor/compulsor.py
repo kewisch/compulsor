@@ -7,7 +7,7 @@ from functools import cached_property
 import click
 import yaml
 from discourse import CanDiscourseClient
-from formatting import sprintinfo
+from formatting import sprintinfo, stripinfo
 from jira import JIRA
 
 
@@ -71,10 +71,16 @@ def showpulse(ctx, pulse, keys, private):
     if not len(pulse):
         pulse = ["latest"]
 
-    print(
+    click.echo(
         "\n".join(
             map(
-                lambda sprintid: sprintinfo(ctx, sprintid, keys, showprivate=private),
+                lambda sprintid: sprintinfo(
+                    ctx,
+                    sprintid,
+                    keys,
+                    reportnamefield=ctx.toolconfig["reportfield"],
+                    showprivate=private,
+                ),
                 pulse,
             )
         )
@@ -82,60 +88,69 @@ def showpulse(ctx, pulse, keys, private):
 
 
 @main.command(help="Post pulse reports to discourse")
-@click.argument("pulse", default="latest")
-@click.argument("discourses", nargs=-1)
+@click.argument("pulses", nargs=-1)
 @click.option(
-    "-a",
-    "--all",
-    "alldiscourse",
-    is_flag=True,
-    help="Post pulse report to all configured discourses",
+    "-d",
+    "--discourse",
+    "discourses",
+    multiple=True,
+    help="Discourses to post to. Omit for all configured discourses",
 )
+@click.option("-f", "--force", is_flag=True, help="Don't prompt to post")
 @click.pass_obj
-def postpulse(ctx, discourses, pulse, alldiscourse):
-    if alldiscourse:
-        discourses = ctx.toolconfig["discourse"].keys()
+def postpulse(ctx, discourses, pulses, force):
     if not len(discourses):
-        discourses = ["ubuntu"]
+        discourses = ctx.toolconfig["discourse"].keys()
 
-    for discourse in discourses:
-        keys = ctx.toolconfig["discourse"][discourse]["keys"]
-        topic = ctx.toolconfig["discourse"][discourse]["topic"]
-        showprivate = ctx.toolconfig["discourse"][discourse].get("private", False)
-
-        client = CanDiscourseClient(ctx.serviceconfig["discourse"][discourse])
-        info = sprintinfo(ctx, pulse, keys, showprivate=showprivate)
+    for pulse in pulses:
+        # Start with the most complete version and strip it. This way we only need to edit once.
+        info = sprintinfo(
+            ctx,
+            pulse,
+            keys=True,
+            reportnamefield=ctx.toolconfig["reportfield"],
+            showprivate=True,
+        )
         info = click.edit(info)
 
         if not info.startswith("## Pulse"):
-            print(f"Error: Text is invalid, skipping {discourse} discourse")
-            continue
+            raise click.ClickException("Error: Text is invalid, bailing out")
 
-        res = client.create_post(topic_id=topic, content=info)
-        print(
-            f'{ctx.serviceconfig["discourse"][discourse]["url"]}/t/{res["topic_slug"]}/{res["topic_id"]}/{res["post_number"]}'
-        )
+        for discourse in discourses:
+            keys = ctx.toolconfig["discourse"][discourse]["keys"]
+            topic = ctx.toolconfig["discourse"][discourse]["topic"]
+            showprivate = ctx.toolconfig["discourse"][discourse].get("private", False)
+            url = ctx.serviceconfig["discourse"][discourse]["url"]
+
+            client = CanDiscourseClient(ctx.serviceconfig["discourse"][discourse])
+
+            content = stripinfo(info, private=showprivate, keys=keys)
+
+            if not force:
+                click.echo(f"Will post the content to {url}:")
+                click.echo(content)
+            if force or click.confirm("Ready to post?"):
+                res = client.create_post(topic_id=topic, content=content)
+                click.echo(
+                    f'{ctx.serviceconfig["discourse"][discourse]["url"]}/t/{res["topic_slug"]}/{res["topic_id"]}/{res["post_number"]}'
+                )
 
 
 @main.command(help="Show discourse links")
 @click.argument("discourses", nargs=-1)
-@click.option(
-    "-a",
-    "--all",
-    "alldiscourse",
-    is_flag=True,
-    help="Use all discourses",
-)
+@click.option("-t", "--test", is_flag=True, help="Ensure API keys are working")
 @click.pass_obj
-def showlinks(ctx, discourses, alldiscourse):
-    if alldiscourse:
-        discourses = ctx.toolconfig["discourse"].keys()
+def showlinks(ctx, discourses, test):
     if not len(discourses):
-        discourses = ["ubuntu"]
+        discourses = ctx.toolconfig["discourse"].keys()
 
     for discourse in discourses:
         topic = ctx.toolconfig["discourse"][discourse]["topic"]
-        print(f'{ctx.serviceconfig["discourse"][discourse]["url"]}/t/{topic}')
+        click.echo(f'{ctx.serviceconfig["discourse"][discourse]["url"]}/t/{topic}')
+
+        if test:
+            client = CanDiscourseClient(ctx.serviceconfig["discourse"][discourse])
+            topic = client.posts(topic)
 
 
 if __name__ == "__main__":

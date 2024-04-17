@@ -9,6 +9,7 @@ jira2markdown = "*"
 pyyaml = "*"
 click = "*"
 pydiscourse = "*"
+pyspellchecker = "*"
 
 [dev-packages]
 black = "*"
