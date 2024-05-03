@@ -27,26 +27,27 @@ services:
 
 tools:
   compulsor:
-    project: "your_project_key"  # Your project key, e.g. CT
-    board: your-sprint-board-id  # The id of your sprint board, see the URL when you are on it
+    project: "your_project_key"    # Your project key, e.g. CT
+    board: your-sprint-board-id    # The id of your sprint board, see the URL when you are on it
+    reportfield: customfield_10576 # The field to get sprint reports from.
     discourse:
       ubuntu:
-        topic: 123               # the topic id to post to
-        keys: false              # If true, jira keys will be included
+        topic: 123                 # the topic id to post to
+        keys: false                # If true, jira keys will be included
       canonical:
         topic: 234
         keys: true
-        private: true            # If private items should be shared
+        private: true              # If private items should be shared
 ```
 
 Installation and Use
 --------------------
 
-This project is using pipenv to manage dependencies, and requires python 3. Here is how to install and run:
+Here is how to install and run:
 
 ```bash
-$ pipenv install
-$ pipenv run compulsor --help
+$ pip install git+https://github.com/kewisch/compulsor.git
+$ compulsor --help
 Usage: compulsor.py [OPTIONS] COMMAND [ARGS]...
 
 Options:
@@ -76,10 +77,8 @@ Options:
 Gathering Information
 ---------------------
 
-On Jira, drop one of these this into the description or a comment:
+On your jira project, add a custom field "Pulse Report Description" where folks on the team should
+be adding what they've done for the ticket. Make sure that not everything starts with "We did x",
+otherwise it will sound very mechanical.
 
-```
-PULSEDESC: I did a thing in the current sprint (uses comment date, best be more explicit)
-PULSEDESC[2023#2]: I did a thing in this specific sprint
-PULSEDESC[2023#5,private]: I did a thing in this sprint, and it should only be shared privately
-```
+If the information is currently confidential, add `[CONFIDENTIAL]` to the pulse report description.

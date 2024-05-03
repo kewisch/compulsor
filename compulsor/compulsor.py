@@ -6,9 +6,10 @@ from functools import cached_property
 
 import click
 import yaml
-from discourse import CanDiscourseClient
-from formatting import sprintinfo, stripinfo
 from jira import JIRA
+
+from .discourse import CanDiscourseClient
+from .formatting import sprintinfo, stripinfo
 
 
 class Context:
