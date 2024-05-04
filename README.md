@@ -48,7 +48,7 @@ Here is how to install and run:
 ```bash
 $ pip install git+https://github.com/kewisch/compulsor.git
 $ compulsor --help
-Usage: compulsor.py [OPTIONS] COMMAND [ARGS]...
+Usage: compulsor [OPTIONS] COMMAND [ARGS]...
 
 Options:
   --debug  Enable debugging
@@ -57,16 +57,16 @@ Commands:
   postpulse  Post pulse reports to discourse
   showpulse  Display a formatted pulse report
 
-$ pipenv run compulsor showpulse --help
-Usage: compulsor.py showpulse [OPTIONS] [PULSE]...
+$ compulsor showpulse --help
+Usage: compulsor showpulse [OPTIONS] [PULSE]...
 
   Display a formatted pulse report
 
 Options:
   -k, --keys  Show Jira keys in the report
 
-$ pipenv run compulsor post pulse --help
-Usage: compulsor.py postpulse [OPTIONS] [PULSE] [DISCOURSES]...
+$ compulsor postpulse --help
+Usage: compulsor postpulse [OPTIONS] [PULSE] [DISCOURSES]...
 
   Post pulse reports to discourse
 
